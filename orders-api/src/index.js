@@ -1,6 +1,7 @@
-const { app } = require("./app");
+const { createApp } = require('./app');
+const { config } = require('./config');
 
-const port = Number(process.env.PORT || 3002);
-app.listen(port, "0.0.0.0", () => {
-  console.log(`[orders-api] listening on ${port}`);
+const app = createApp();
+app.listen(config.port, () => {
+  console.log(`[orders-api] listening on :${config.port}`);
 });

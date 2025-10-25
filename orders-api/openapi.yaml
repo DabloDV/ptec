@@ -1,89 +1,161 @@
 openapi: 3.0.3
 info:
-title: Orders API
-version: 0.1.0
+  title: Orders API
+  version: "1.0.0"
 servers:
-- url: http://localhost:3002
+  - url: http://localhost:3002
 paths:
-/health:
-get:
-summary: Health check
-responses:
-'200':
-description: OK
-
-paths:
-  /orders/{id}/confirm:
-    put:
-      summary: Confirm order
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: integer }
+  /health:
+    get:
+      summary: Salud del servicio
       responses:
-        "200": { description: Confirmed }
-        "404": { description: Not Found }
-        "409": { description: Invalid transition }
+        "200":
+          description: OK
+          content:
+            application/json:
+              example: { ok: true, service: "orders-api" }
 
-  /orders/{id}/cancel:
-    put:
-      summary: Cancel order (restores stock if CREATED)
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: integer }
-      responses:
-        "200": { description: Canceled }
-        "404": { description: Not Found }
-        "409": { description: Invalid transition }
-
-  /orders/{id}:
-    patch:
-      summary: Update order status
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: integer }
+  /orders:
+    post:
+      summary: Crear orden
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              type: object
-              required: [status]
-              properties:
-                status:
-                  type: string
-                  enum: [CONFIRMED, CANCELED]
+            schema: { $ref: "#/components/schemas/CreateOrderInput" }
+            examples:
+              demo:
+                value:
+                  customer_id: 1
+                  items: [ { product_id: 1, qty: 1 } ]
       responses:
-        "200": { description: Updated }
-        "404": { description: Not Found }
-        "409": { description: Invalid transition }
+        "201":
+          description: Creada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderCreated" }
+              example: { id: 2, customer_id: 1, status: "CREATED", total_cents: 1500, created_at: "2025-10-25T18:03:43.000Z" }
+        "400":
+          description: Request inválido
+          content:
+            application/json: { example: { error: "bad_request" } }
+        "500":
+          description: Error interno
+          content:
+            application/json: { example: { error: "create_failed" } }
 
-  /orders:
-    get:
-      summary: List orders
+  /orders/{id}/confirm:
+    post:
+      summary: Confirmar orden (idempotente)
       parameters:
-        - in: query
-          name: status
-          schema: { type: string, enum: [CREATED, CONFIRMED, CANCELED] }
-        - in: query
-          name: customerId
+        - in: path
+          name: id
+          required: true
           schema: { type: integer }
-        - in: query
-          name: from
-          schema: { type: string, format: date-time }
-        - in: query
-          name: to
-          schema: { type: string, format: date-time }
-        - in: query
-          name: cursor
-          schema: { type: integer }
-        - in: query
-          name: limit
-          schema: { type: integer, default: 20, maximum: 100 }
+      security:
+        - ServiceTokenAuth: []
+      requestBody:
+        required: false
       responses:
-        "200": { description: OK }
+        "200":
+          description: Confirmada
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrderConfirmed" }
+              example: { id: 2, status: "CONFIRMED", total_cents: 1500 }
+        "400":
+          description: Falta Idempotency-Key o id inválido
+          content:
+            application/json:
+              examples:
+                missingIdem: { value: { error: "missing_idempotency_key" } }
+                invalidId:  { value: { error: "invalid_id" } }
+        "401":
+          description: No autorizado
+          content:
+            application/json: { example: { error: "unauthorized" } }
+        "404":
+          description: No encontrado
+          content:
+            application/json: { example: { error: "not_found" } }
+        "409":
+          description: Estado inválido
+          content:
+            application/json: { example: { error: "invalid_state" } }
+        "500":
+          description: Error interno
+          content:
+            application/json: { example: { error: "confirm_failed" } }
+      x-headers:
+        required:
+          - Idempotency-Key
+        optional:
+          - X-Idempotency-Key
+
+  /orders/{id}/cancel:
+    post:
+      summary: Cancelar orden (devuelve stock si está en CREATED)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      security:
+        - ServiceTokenAuth: []
+      responses:
+        "200":
+          description: Cancelada
+          content:
+            application/json:
+              example: { id: 3, status: "CANCELED" }
+        "401":
+          description: No autorizado
+          content:
+            application/json: { example: { error: "unauthorized" } }
+        "404":
+          description: No encontrado
+          content:
+            application/json: { example: { error: "not_found" } }
+        "409":
+          description: No se puede cancelar
+          content:
+            application/json: { example: { error: "cannot_cancel" } }
+        "500":
+          description: Error interno
+          content:
+            application/json: { example: { error: "cancel_failed" } }
+
+components:
+  securitySchemes:
+    ServiceTokenAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    CreateOrderInput:
+      type: object
+      required: [customer_id, items]
+      properties:
+        customer_id: { type: integer }
+        items:
+          type: array
+          items:
+            type: object
+            required: [product_id, qty]
+            properties:
+              product_id: { type: integer }
+              qty: { type: integer, minimum: 1 }
+    OrderCreated:
+      type: object
+      properties:
+        id: { type: integer }
+        customer_id: { type: integer }
+        status: { type: string, enum: [CREATED, CONFIRMED, CANCELED] }
+        total_cents: { type: integer }
+        created_at: { type: string, format: date-time }
+    OrderConfirmed:
+      type: object
+      properties:
+        id: { type: integer }
+        status: { type: string, enum: [CONFIRMED] }
+        total_cents: { type: integer }
