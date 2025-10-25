@@ -1,0 +1,8 @@
+.env
+.env.*
+.nyc_output
+coverage/
+.serverless/
+.webpack/
+*.log
+.DS_Store
