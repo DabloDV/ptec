@@ -1,56 +1,52 @@
-version: "3.9"
+version: "2.4"
 
 services:
   mysql:
     image: mysql:8.0
     container_name: jelou-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: XXXXXXXX
+      MYSQL_ROOT_PASSWORD: changeme
       MYSQL_DATABASE: jelou
-      MYSQL_AUTHENTICATION_PLUGIN: caching_sha2_password
-  ports:
-    - "3306:3306"
-  volumes:
-    - ./db/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql:ro
-    - ./db/seed.sql:/docker-entrypoint-initdb.d/2-seed.sql:ro
-  healthcheck:
-    test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-    interval: 5s
-    timeout: 3s
-    retries: 30
-  networks:
-    - jelou_net
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql:ro
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/2-seed.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      - jelou_net
 
+  customers-api:
+    build:
+      context: ./customers-api
+    container_name: customers-api
+    env_file: ./customers-api/.env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    networks:
+      - jelou_net
 
-customers-api:
-  build: ./customers-api
-  container_name: customers-api
-  env_file:
-    - ./customers-api/.env
-  depends_on:
-    mysql:
-      condition: service_healthy
-  ports:
-    - "3001:3001"
-  networks:
-    - jelou_net
-
-
-orders-api:
-  build: ./orders-api
-  container_name: orders-api
-  env_file:
-    - ./orders-api/.env
-  depends_on:
-    mysql:
-      condition: service_healthy
-    customers-api:
-      condition: service_started
-  ports:
-    - "3002:3002"
-  networks:
-    - jelou_net
-
+  orders-api:
+    build:
+      context: ./orders-api
+    container_name: orders-api
+    env_file: ./orders-api/.env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      customers-api:
+        condition: service_started
+    ports:
+      - "3002:3002"
+    networks:
+      - jelou_net
 
 networks:
   jelou_net:
