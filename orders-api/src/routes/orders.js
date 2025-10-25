@@ -140,12 +140,17 @@ router.get("/orders", async (req, res) => {
   const limit = Math.min(Number(req.query.limit || 20), 100);
   const cursor = Number(req.query.cursor || 0);
 
+  const from = String(req.query.from || "").trim(); // YYYY-MM-DD o ISO
+  const to   = String(req.query.to || "").trim();
+
   const pool = await getPool();
   const where = [];
   const params = [];
 
   if (status) { where.push("status=?"); params.push(status); }
   if (customerId) { where.push("customer_id=?"); params.push(customerId); }
+  if (from) { where.push("created_at >= ?"); params.push(from); }
+  if (to)   { where.push("created_at < ?");  params.push(to); } 
   if (cursor) { where.push("id > ?"); params.push(cursor); }
 
   const sql =
@@ -154,7 +159,7 @@ router.get("/orders", async (req, res) => {
      ${where.length ? "WHERE "+where.join(" AND ") : ""}
      ORDER BY id ASC
      LIMIT ?`;
-  const [rows] = await pool.query(sql, [...params, limit + 1]);
+  const [rows] = await getPool().then(p => p.query(sql, [...params, limit + 1]));
 
   let nextCursor = null;
   let data = rows;
@@ -281,6 +286,78 @@ router.put("/orders/:id/cancel", async (req, res) => {
   }
 });
 
+
+router.patch("/orders/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const targetRaw = (req.body && req.body.status) ? String(req.body.status) : "";
+  const target = targetRaw.toUpperCase();
+  if (!["CONFIRMED", "CANCELED"].includes(target)) {
+    return res.status(400).json({ error: "Invalid target status" });
+  }
+
+  const pool = await getPool();
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [o] = await conn.query(
+      "SELECT id, status, customer_id AS customerId, total_cents, created_at FROM orders WHERE id=? FOR UPDATE",
+      [id]
+    );
+    if (!o.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: "Not found" });
+    }
+    const ord = o[0];
+
+    if (ord.status === target) {
+      const [items0] = await conn.query(
+        "SELECT product_id AS productId, qty, unit_price_cents, subtotal_cents FROM order_items WHERE order_id=?",
+        [id]
+      );
+      await conn.commit();
+      return res.json({ ...ord, status: target, items: items0 });
+    }
+
+    if (target === "CONFIRMED") {
+      if (ord.status !== "CREATED") {
+        await conn.rollback();
+        return res.status(409).json({ error: `Cannot confirm from status ${ord.status}` });
+      }
+      await conn.query("UPDATE orders SET status='CONFIRMED' WHERE id=?", [id]);
+    } else { //CANCELED
+      if (ord.status !== "CREATED") {
+        await conn.rollback();
+        return res.status(409).json({ error: `Cannot cancel from status ${ord.status}` });
+      }
+      //Devolver inv
+      const [items] = await conn.query(
+        "SELECT product_id AS productId, qty FROM order_items WHERE order_id=? FOR UPDATE",
+        [id]
+      );
+      for (const it of items) {
+        await conn.query("UPDATE products SET stock = stock + ? WHERE id = ?", [it.qty, it.productId]);
+      }
+      await conn.query("UPDATE orders SET status='CANCELED' WHERE id=?", [id]);
+    }
+
+    //Respuesta con items
+    const [itemsFull] = await conn.query(
+      "SELECT product_id AS productId, qty, unit_price_cents, subtotal_cents FROM order_items WHERE order_id=?",
+      [id]
+    );
+
+    await conn.commit();
+    return res.json({ ...ord, status: target, items: itemsFull });
+  } catch (e) {
+    try { await conn.rollback(); } catch {}
+    return res.status(500).json({ error: "Internal error" });
+  } finally {
+    conn.release();
+  }
+});
 
 //#Endpoint int
 router.get("/internal/orders/:id", serviceAuth, async (req,res)=>{

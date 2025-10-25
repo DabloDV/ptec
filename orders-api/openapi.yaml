@@ -39,6 +39,30 @@ paths:
         "404": { description: Not Found }
         "409": { description: Invalid transition }
 
+  /orders/{id}:
+    patch:
+      summary: Update order status
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [CONFIRMED, CANCELED]
+      responses:
+        "200": { description: Updated }
+        "404": { description: Not Found }
+        "409": { description: Invalid transition }
+
   /orders:
     get:
       summary: List orders

@@ -5,7 +5,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon --watch src src/index.js",
+    "test": "jest --runInBand"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
@@ -15,6 +16,11 @@
     "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.0.0",
     "nodemon": "^3.1.10"
+  },
+  "jest": {
+    "testEnvironment": "node"
   }
 }
