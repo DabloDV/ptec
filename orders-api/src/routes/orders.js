@@ -165,6 +165,123 @@ router.get("/orders", async (req, res) => {
   return res.json({ data, nextCursor });
 });
 
+//#PUT /orders/:id/confirm  -> CREATED -> CONFIRMED (idempotente)
+router.put("/orders/:id/confirm", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const pool = await getPool();
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    //#Bloquea la orden para transición segura
+    const [o] = await conn.query(
+      "SELECT id, status, customer_id AS customerId, total_cents, created_at FROM orders WHERE id=? FOR UPDATE",
+      [id]
+    );
+    if (!o.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: "Not found" });
+    }
+    const ord = o[0];
+
+    if (ord.status === "CONFIRMED") {
+      await conn.commit();
+      return res.json({ ...ord, status: "CONFIRMED" }); //#idempotente
+    }
+    if (ord.status !== "CREATED") {
+      await conn.rollback();
+      return res.status(409).json({ error: `Cannot confirm from status ${ord.status}` });
+    }
+
+    await conn.query("UPDATE orders SET status='CONFIRMED' WHERE id=?", [id]);
+
+    //#Items para responder
+    const [items] = await conn.query(
+      "SELECT product_id AS productId, qty, unit_price_cents, subtotal_cents FROM order_items WHERE order_id=?",
+      [id]
+    );
+
+    await conn.commit();
+    return res.json({ ...ord, status: "CONFIRMED", items });
+  } catch (e) {
+    try { await conn.rollback(); } catch {}
+    return res.status(500).json({ error: "Internal error" });
+  } finally {
+    conn.release();
+  }
+});
+
+//#PUT /orders/:id/cancel
+router.put("/orders/:id/cancel", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const pool = await getPool();
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    //#Bloquear orden
+    const [o] = await conn.query(
+      "SELECT id, status, customer_id AS customerId, total_cents, created_at FROM orders WHERE id=? FOR UPDATE",
+      [id]
+    );
+    if (!o.length) {
+      await conn.rollback();
+      return res.status(404).json({ error: "Not found" });
+    }
+    const ord = o[0];
+
+    if (ord.status === "CANCELED") {
+      //#idempotent
+      const [items0] = await conn.query(
+        "SELECT product_id AS productId, qty, unit_price_cents, subtotal_cents FROM order_items WHERE order_id=?",
+        [id]
+      );
+      await conn.commit();
+      return res.json({ ...ord, items: items0, status: "CANCELED" });
+    }
+    if (ord.status !== "CREATED") {
+      await conn.rollback();
+      return res.status(409).json({ error: `Cannot cancel from status ${ord.status}` });
+    }
+
+    //#Items para devolver stock
+    const [items] = await conn.query(
+      "SELECT product_id AS productId, qty FROM order_items WHERE order_id=? FOR UPDATE",
+      [id]
+    );
+
+    //#Devuelve inv
+    for (const it of items) {
+      await conn.query(
+        "UPDATE products SET stock = stock + ? WHERE id = ?",
+        [it.qty, it.productId]
+      );
+    }
+
+    //#Marca orden como cancelada
+    await conn.query("UPDATE orders SET status='CANCELED' WHERE id=?", [id]);
+
+    //#Items para respuesta extendida
+    const [itemsFull] = await conn.query(
+      "SELECT product_id AS productId, qty, unit_price_cents, subtotal_cents FROM order_items WHERE order_id=?",
+      [id]
+    );
+
+    await conn.commit();
+    return res.json({ ...ord, status: "CANCELED", items: itemsFull });
+  } catch (e) {
+    try { await conn.rollback(); } catch {}
+    return res.status(500).json({ error: "Internal error" });
+  } finally {
+    conn.release();
+  }
+});
+
+
 //#Endpoint int
 router.get("/internal/orders/:id", serviceAuth, async (req,res)=>{
   const id = Number(req.params.id);

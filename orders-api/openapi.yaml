@@ -11,3 +11,55 @@ summary: Health check
 responses:
 '200':
 description: OK
+
+paths:
+  /orders/{id}/confirm:
+    put:
+      summary: Confirm order
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Confirmed }
+        "404": { description: Not Found }
+        "409": { description: Invalid transition }
+
+  /orders/{id}/cancel:
+    put:
+      summary: Cancel order (restores stock if CREATED)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200": { description: Canceled }
+        "404": { description: Not Found }
+        "409": { description: Invalid transition }
+
+  /orders:
+    get:
+      summary: List orders
+      parameters:
+        - in: query
+          name: status
+          schema: { type: string, enum: [CREATED, CONFIRMED, CANCELED] }
+        - in: query
+          name: customerId
+          schema: { type: integer }
+        - in: query
+          name: from
+          schema: { type: string, format: date-time }
+        - in: query
+          name: to
+          schema: { type: string, format: date-time }
+        - in: query
+          name: cursor
+          schema: { type: integer }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20, maximum: 100 }
+      responses:
+        "200": { description: OK }

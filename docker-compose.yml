@@ -45,7 +45,7 @@ services:
       DB_USER: root
       DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme}
       DB_NAME: ${MYSQL_DATABASE:-store}
-      JWT_SECRET: ${JWT_SECRET:-dev_jwt_secret}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
       SERVICE_TOKEN: ${SERVICE_TOKEN:-service_token_dev}
       PORT: 3002
     ports:
