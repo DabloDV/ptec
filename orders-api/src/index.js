@@ -1,10 +1,19 @@
-import { config } from './config.js';
-import { createApp } from './app.js';
+require("dotenv").config();
+const express = require("express");
+const { jwtAuth } = require("./middleware/jwtAuth");
+const ordersRouter = require("./routes/orders");
 
+const app = express();
+app.use(express.json());
 
-const app = createApp();
+//#Health
+app.get("/health", (_req,res)=>res.json({ok:true, service:"orders-api"}));
 
+//#JWT
+app.use(jwtAuth);
 
-app.listen(config.port, () => {
-console.log(`[orders-api] listening on :${config.port}`);
-});
+//#Rutas de órdenes
+app.use(ordersRouter);
+
+const port = Number(process.env.PORT || 3002);
+app.listen(port, "0.0.0.0", ()=>console.log(`[orders-api] listening on ${port}`));
