@@ -1,94 +1,58 @@
 openapi: 3.0.3
 info:
   title: Customers API
-  version: "0.1.0"
+  version: "1.0.0"
 servers:
   - url: http://localhost:3001
 paths:
   /health:
     get:
-      summary: Health check
+      summary: Salud del servicio
       responses:
         "200":
           description: OK
-  /customers:
-    get:
-      summary: Search customers
-      parameters:
-        - in: query
-          name: search
-          schema: { type: string }
-        - in: query
-          name: cursor
-          schema: { type: integer }
-        - in: query
-          name: limit
-          schema: { type: integer, default: 20, maximum: 100 }
-      responses:
-        "200": { description: OK }
-    post:
-      summary: Create customer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [name, email]
-              properties:
-                name: { type: string }
-                email: { type: string, format: email }
-                phone: { type: string }
-      responses:
-        "201": { description: Created }
-        "409": { description: Email duplicate }
-  /customers/{id}:
-    get:
-      summary: Get customer by id
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: integer }
-      responses:
-        "200": { description: OK }
-        "404": { description: Not Found }
-    put:
-      summary: Update customer
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: integer }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-      responses:
-        "200": { description: Updated }
-        "404": { description: Not Found }
-        "409": { description: Email duplicate }
-    delete:
-      summary: Soft-delete customer
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema: { type: integer }
-      responses:
-        "204": { description: Deleted }
-        "404": { description: Not Found }
+          content:
+            application/json:
+              example: { ok: true, service: "customers-api" }
   /internal/customers/{id}:
     get:
-      summary: Internal lookup (service token)
+      summary: Detalle interno de cliente (requiere token de servicio)
       parameters:
         - in: path
           name: id
           required: true
           schema: { type: integer }
+      security:
+        - ServiceTokenAuth: []
       responses:
-        "200": { description: OK }
-        "403": { description: Forbidden }
-        "404": { description: Not Found }
+        "200":
+          description: Cliente
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Customer" }
+              example: { id: 1, name: "Demo", email: "ops@acme.com", phone: "+57 300 000 0000", created_at: "2025-10-25T13:23:19.000Z" }
+        "401":
+          description: No autorizado
+          content:
+            application/json:
+              example: { error: "unauthorized" }
+        "404":
+          description: No encontrado
+          content:
+            application/json:
+              example: { error: "not_found" }
+components:
+  securitySchemes:
+    ServiceTokenAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Customer:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        phone: { type: string }
+        created_at: { type: string, format: date-time }

@@ -1,11 +1,12 @@
-function serviceAuth(req, res, next) {
-  const header = req.headers["authorization"] || "";
-  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+const { config } = require('../config');
 
-  if (!token || token !== process.env.SERVICE_TOKEN) {
-    return res.status(403).json({ error: "Forbidden" });
+function serviceAuth(req, res, next) {
+  const header = req.headers['authorization'] || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  if (!token || token !== config.serviceToken) {
+    return res.status(401).json({ error: 'unauthorized' });
   }
-  return next();
+  next();
 }
 
 module.exports = { serviceAuth };
