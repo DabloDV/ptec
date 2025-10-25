@@ -21,7 +21,24 @@
 - `lambda-orchestrator/`: Serverless Framework (Node.js 22) con `serverless-offline`
 
 
-## Próximos pasos
-- Implementar endpoints funcionales y documentación OpenAPI por servicio.
-- Añadir autenticación JWT y SERVICE_TOKEN para `/internal`.
-- Añadir lógica de órdenes, transacciones e idempotencia.
+# Orchestrator + Orders confirm/cancel (E2E)
+
+## Variables clave
+- SERVICE_TOKEN (en APIs y Lambda) = `service-secret-123`
+- Headers: `X-Correlation-Id` (opcional), `Idempotency-Key` (recomendado)
+
+## Cómo levantar entorno
+```bash
+# Terminal A – servicios
+docker compose up -d
+
+# Terminal B – lambda
+cd lambda-orchestrator
+cp .env.example .env
+npm install
+npm run dev   # http://localhost:3000
+
+## Requisitos
+- Docker / Docker Compose
+- Node 16 LTS (lambda offline)
+- curl

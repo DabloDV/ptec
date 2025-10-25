@@ -42,14 +42,15 @@ services:
       DB_PORT: 3306
       DB_USER: root
       DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-changeme}
-      DB_NAME: ${MYSQL_DATABASE:-store}
+      DB_NAME: ${MYSQL_DATABASE:-jelou}
       JWT_SECRET: ${JWT_SECRET:-dev-secret}
       SERVICE_TOKEN: ${SERVICE_TOKEN:-service_token_dev}
       PORT: 3002
     ports:
       - "3002:3002"
-    links:
-      - mysql
+    networks:
+      - jelou_net
+
 
 networks:
   jelou_net:

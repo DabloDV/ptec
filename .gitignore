@@ -6,3 +6,8 @@ coverage/
 .webpack/
 *.log
 .DS_Store
+.aws-sam/
+dist/
+build/
+*.zip
+.aws

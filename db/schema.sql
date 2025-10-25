@@ -55,11 +55,12 @@ CREATE TABLE IF NOT EXISTS order_items (
 
 CREATE TABLE IF NOT EXISTS idempotency_keys (
   `key` VARCHAR(128) NOT NULL,
-  target_type VARCHAR(64) NOT NULL,
+  target_type ENUM('ORDER_CONFIRM') NOT NULL,
   target_id BIGINT UNSIGNED NOT NULL,
-  status VARCHAR(32) NOT NULL,
-  response_body JSON,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  expires_at DATETIME NULL,
-  PRIMARY KEY (`key`)
+  status ENUM('PENDING','SUCCEEDED','FAILED') NOT NULL DEFAULT 'PENDING',
+  response_body JSON NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  expires_at TIMESTAMP NULL DEFAULT NULL,
+  PRIMARY KEY (`key`),
+  KEY idx_idem_target (target_type, target_id)
 ) ENGINE=InnoDB;
